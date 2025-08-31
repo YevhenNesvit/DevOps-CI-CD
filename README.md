@@ -1,256 +1,232 @@
-# Lesson 5 - Terraform AWS Infrastructure
+# Django Kubernetes Deployment with Terraform and Helm
 
-Цей проєкт містить Terraform конфігурацію для створення AWS інфраструктури з використанням модульної структури.
+Цей проект демонструє розгортання Django застосунку в Amazon EKS (Elastic Kubernetes Service) за допомогою Terraform та Helm.
 
-## 📁 Структура проєкту
+## Архітектура
+
+- **AWS EKS** - керований Kubernetes кластер
+- **ECR** - зберігання Docker образів
+- **VPC** - ізольована мережа з публічними та приватними підмережами
+- **Terraform** - Infrastructure as Code
+- **Helm** - управління Kubernetes ресурсами
+- **HPA** - автоматичне масштабування подів
+
+## Структура проекту
 
 ```
-lesson-5/
+lesson-7/
+├── main.tf                    # Головний Terraform файл
+├── backend.tf                 # Налаштування backend
+├── outputs.tf                 # Виводи Terraform
+├── terraform.tfvars.example   # Приклад змінних
+├── deploy.sh                  # Скрипт деплойменту
+├── Dockerfile.example         # Приклад Dockerfile
+├── requirements.txt.example   # Python залежності
 │
-├── main.tf                  # Головний файл для підключення модулів
-├── backend.tf               # Налаштування бекенду для стейтів (S3 + DynamoDB)
-├── outputs.tf               # Загальне виведення ресурсів
+├── modules/                   # Terraform модулі
+│   ├── s3-backend/           # S3 + DynamoDB для стейту
+│   ├── vpc/                  # VPC налаштування
+│   ├── ecr/                  # ECR репозиторій
+│   └── eks/                  # EKS кластер
+│       ├── eks.tf
+│       ├── variables.tf
+│       └── outputs.tf
 │
-├── modules/                 # Каталог з усіма модулями
-│   │
-│   ├── s3-backend/          # Модуль для S3 та DynamoDB
-│   │   ├── s3.tf            # Створення S3-бакета
-│   │   ├── dynamodb.tf      # Створення DynamoDB
-│   │   ├── variables.tf     # Змінні для S3
-│   │   └── outputs.tf       # Виведення інформації про S3 та DynamoDB
-│   │
-│   ├── vpc/                 # Модуль для VPC
-│   │   ├── vpc.tf           # Створення VPC, підмереж, Internet Gateway
-│   │   ├── routes.tf        # Налаштування маршрутизації
-│   │   ├── variables.tf     # Змінні для VPC
-│   │   └── outputs.tf       # Виведення інформації про VPC
-│   │
-│   └── ecr/                 # Модуль для ECR
-│       ├── ecr.tf           # Створення ECR репозиторію
-│       ├── variables.tf     # Змінні для ECR
-│       └── outputs.tf       # Виведення URL репозиторію ECR
-│
-└── README.md                # Документація проєкту
+└── charts/                   # Helm charts
+    └── django-app/
+        ├── Chart.yaml
+        ├── values.yaml
+        └── templates/
+            ├── deployment.yaml
+            ├── service.yaml
+            ├── configmap.yaml
+            ├── hpa.yaml
+            └── _helpers.tpl
 ```
 
-## 🚀 Швидкий старт
+## Передумови
 
-### Крок 1: Клонування та підготовка
+1. **AWS CLI** встановлений та налаштований
+2. **Terraform** >= 1.0
+3. **kubectl** встановлений
+4. **Helm** >= 3.0
+5. **Docker** встановлений
+6. Права доступу до AWS для створення EKS, ECR, VPC ресурсів
 
-1. Створіть директорію `lesson-5` та скопіюйте всі файли
-2. Змініть назву S3 бакету в `main.tf` на унікальну (рядок 18)
-3. Переконайтеся, що у вас налаштовані AWS credentials
+## Інсталяція та запуск
 
-### Крок 2: Ініціалізація та створення ресурсів
+### 1. Підготовка конфігурації
 
 ```bash
-# Перейти до директорії проєкту
-cd lesson-5
+# Клонувати репозиторій
+git clone <your-repo-url>
+cd lesson-7
+```
 
+### 2. Ініціалізація Terraform
+
+```bash
 # Ініціалізація Terraform
 terraform init
 
-# Перегляд плану розгортання
+# Перевірити план
 terraform plan
 
-# Застосування конфігурації
+# Застосувати зміни
 terraform apply
 ```
 
-### Крок 3: Налаштування remote backend (опціонально)
-
-Після створення S3 та DynamoDB:
-
-1. Розкоментуйте блок в `backend.tf`
-2. Змініть назву бакету на вашу
-3. Виконайте міграцію стейту:
+### 3. Підготовка Django застосунку
 
 ```bash
-terraform init -migrate-state
+docker build -t django:latest ./django
+
+# Перетегування для ECR
+docker tag django:latest 752105083048.dkr.ecr.us-east-1.amazonaws.com/lesson-7-ecr:latest
+
+# Пуш у ECR
+docker push 752105083048.dkr.ecr.us-east-1.amazonaws.com/lesson-7-ecr:latest
 ```
 
-## 📦 Опис модулів
+## Конфігурація
 
-### 🪣 s3-backend
+### Terraform змінні (terraform.tfvars)
 
-**Призначення**: Створення S3 бакету для зберігання стейт-файлів Terraform та DynamoDB таблиці для блокування.
+- `aws_region` - AWS регіон
+- `s3_bucket_name` - унікальне ім'я S3 bucket для Terraform state
+- `eks_cluster_name` - ім'я EKS кластера
+- `ecr_repository_name` - ім'я ECR репозиторію
+- `node_instance_types` - типи EC2 інстансів для worker nodes
 
-**Ресурси що створюються**:
-- S3 бакет з увімкненим версіюванням та шифруванням
-- DynamoDB таблиця для блокування стейтів
-- Налаштування безпеки S3 бакету
+### Helm values (charts/django-app/values.yaml)
 
-**Входи**:
-- `bucket_name` - назва S3 бакету
-- `table_name` - назва DynamoDB таблиці
-- `region` - AWS регіон
+- `image.repository` - ECR repository URL (встановлюється автоматично)
+- `config` - змінні середовища для Django
+- `resources` - лімити CPU/пам'яті
+- `autoscaling` - налаштування HPA
 
-### 🌐 vpc
+## Компоненти
 
-**Призначення**: Створення повноцінної мережевої інфраструктури AWS.
+### 1. EKS Кластер
+- Керований Kubernetes кластер
+- Worker nodes у приватних підмережах
+- Auto Scaling Groups для worker nodes
 
-**Ресурси що створюються**:
-- VPC з DNS підтримкою
-- 3 публічні підмережі в різних зонах доступності
-- 3 приватні підмережі в різних зонах доступності
-- Internet Gateway для публічного доступу
-- NAT Gateway для приватних підмереж
-- Route Tables з відповідною маршрутизацією
+### 2. ECR (Elastic Container Registry)
+- Приватний Docker registry
+- Автоматична аутентифікація з EKS
 
-**Входи**:
-- `vpc_cidr_block` - CIDR блок для VPC
-- `public_subnets` - список CIDR блоків для публічних підмереж
-- `private_subnets` - список CIDR блоків для приватних підмереж
-- `availability_zones` - список зон доступності
-- `vpc_name` - назва VPC
+### 3. VPC мережа
+- Публічні підмережі для Load Balancer
+- Приватні підмережі для worker nodes
+- NAT Gateway для вихідного трафіку
 
-### 🐳 ecr
+### 4. Helm Chart компоненти
 
-**Призначення**: Створення Elastic Container Registry для зберігання Docker образів.
+#### Deployment
+- Запускає Django поди
+- Підключає ConfigMap з змінними середовища
+- Health checks (liveness/readiness probes)
 
-**Ресурси що створюються**:
-- ECR репозиторій з автоматичним скануванням
-- Політика життєвого циклу образів
-- IAM роль та політика для доступу до ECR
-- Налаштування шифрування
+#### Service
+- LoadBalancer тип для зовнішнього доступу
+- Маршрутизує трафік до подів
 
-**Входи**:
-- `ecr_name` - назва ECR репозиторію
-- `scan_on_push` - увімкнення сканування при push
-- `image_tag_mutability` - можливість змінювати теги
+#### ConfigMap
+- Зберігає змінні середовища Django
+- DEBUG, SECRET_KEY, DATABASE_URL, тощо
 
-## 📋 Команди управління
+#### HPA (Horizontal Pod Autoscaler)
+- Автоматичне масштабування 2-6 подів
+- Базується на CPU utilization (70%)
 
-### Основні команди
+## Моніторинг та управління
+
+### Перевірка стану кластера
 
 ```bash
-# Ініціалізація проєкту
-terraform init
+# Перевірити ноди
+kubectl get nodes
 
-# Форматування коду
-terraform fmt
+# Перевірити поди
+kubectl get pods
 
-# Валідація конфігурації
-terraform validate
+# Перевірити сервіси
+kubectl get services
 
-# Планування змін
-terraform plan
+# Перевірити HPA
+kubectl get hpa
+```
 
-# Застосування змін
-terraform apply
+### Логи застосунку
 
-# Перегляд поточного стану
-terraform show
+```bash
+# Перегляд логів
+kubectl logs -l app.kubernetes.io/name=django-app
 
-# Список ресурсів
-terraform state list
+# Слідкувати за логами
+kubectl logs -l app.kubernetes.io/name=django-app -f
+```
 
-# Знищення інфраструктури
+### Оновлення застосунку
+
+```bash
+# Оновити образ і розгорнути
+helm upgrade django-app ./charts/django-app \
+  --set image.tag=new-version
+
+# Або перезапустити деплоймент
+kubectl rollout restart deployment/django-app
+```
+
+## Очищення ресурсів
+
+```bash
+# Видалити Helm release
+helm uninstall django-app
+
+# Видалити Terraform ресурси
 terraform destroy
 ```
 
-### Команди для роботи з модулями
+## Безпека
 
+- Worker nodes у приватних підмережах
+- Security groups обмежують доступ
+- ECR repositories приватні
+- IAM ролі з мінімальними правами
+
+## Troubleshooting
+
+### Поди не запускаються
 ```bash
-# Планування конкретного модуля
-terraform plan -target=module.vpc
-
-# Застосування конкретного модуля
-terraform apply -target=module.ecr
-
-# Перегляд виводів
-terraform output
-
-# Перегляд виводів конкретного модуля
-terraform output ecr_repository_url
+kubectl describe pod <pod-name>
+kubectl logs <pod-name>
 ```
 
-## 🔒 Безпека
-
-### Налаштування S3 бакету
-
-- ✅ Увімкнено версіювання для відновлення стейтів
-- ✅ Увімкнено шифрування AES256
-- ✅ Заблоковано публічний доступ
-- ✅ Налаштовано теги для відстеження
-
-### Налаштування ECR
-
-- ✅ Автоматичне сканування образів на вразливості
-- ✅ Шифрування репозиторію
-- ✅ Політика життєвого циклу для очищення старих образів
-- ✅ IAM роль з мінімальними необхідними дозволами
-
-### Налаштування VPC
-
-- ✅ Розділення на публічні та приватні підмережі
-- ✅ NAT Gateway для безпечного вихідного трафіку з приватних підмереж
-- ✅ Правильне налаштування маршрутизації
-
-## 🌍 Створені ресурси
-
-Після успішного виконання `terraform apply` будуть створені:
-
-### S3 та DynamoDB
-- S3 бакет для стейт-файлів
-- DynamoDB таблиця для блокування
-
-### Мережева інфраструктура
-- 1 VPC
-- 3 публічні підмережі
-- 3 приватні підмережі
-- 1 Internet Gateway
-- 1 NAT Gateway
-- 2 Route Tables
-
-### Container Registry
-- 1 ECR репозиторій
-- 1 IAM роль для доступу
-
-## 💰 Вартість
-
-Приблизна вартість ресурсів:
-
-- **S3**: ~$0.023/GB/місяць
-- **DynamoDB**: Pay-per-request (безкоштовний рівень)
-- **VPC**: Безкоштовно
-- **Підмережі**: Безкоштовно  
-- **Internet Gateway**: Безкоштовно
-- **NAT Gateway**: ~$32.85/місяць + трафік
-- **ECR**: $0.10/GB/місяць
-
-**Загальна вартість**: ~$33-40/місяць (в основному NAT Gateway)
-
-## 🚨 Важливі зауваження
-
-1. **Змініть назву S3 бакету** в `main.tf` - вона має бути глобально унікальною
-2. **Перший запуск**: backend.tf має бути закоментований до створення S3 та DynamoDB
-3. **NAT Gateway**: Коштовний ресурс, видаліть якщо не потрібен інтернет для приватних підмереж
-4. **Регіон**: Всі ресурси створюються в `us-east-1`
-5. **Теги**: Додано відповідні теги для відстеження ресурсів
-
-## 🔄 Міграція стейту
-
-Для переходу на remote backend після створення S3:
-
-1. Розкоментуйте блок в `backend.tf`
-2. Змініть `bucket_name` на ваш
-3. Виконайте:
-
+### LoadBalancer не отримує IP
 ```bash
-terraform init -migrate-state
+kubectl describe service django-app
+# Перевірити AWS Load Balancer Controller
 ```
 
-## 🐛 Усунення неполадок
-
-### Помилка "bucket already exists"
-Змініть назву бакету в `main.tf` на унікальну.
-
-### Помилка доступу
-Перевірте AWS credentials та дозволи IAM.
-
-### Помилка з availability zones
-Перевірте доступні зони для вашого регіону:
+### ECR аутентифікація
 ```bash
-aws ec2 describe-availability-zones --region us-east-1
+aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin <account>.dkr.ecr.us-west-2.amazonaws.com
 ```
+
+## Додаткові можливості
+
+### Ingress з TLS (бонус)
+Для налаштування Ingress з cert-manager:
+
+1. Встановити cert-manager
+2. Створити Ingress resource
+3. Налаштувати DNS запис
+
+## Корисні посилання
+
+- [EKS Documentation](https://docs.aws.amazon.com/eks/)
+- [Helm Documentation](https://helm.sh/docs/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
+- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)

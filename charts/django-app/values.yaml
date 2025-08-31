@@ -1,0 +1,64 @@
+replicaCount: 2
+
+image:
+  repository: ""  # Will be set during deployment, e.g., 123456789012.dkr.ecr.us-west-2.amazonaws.com/django-app
+  tag: "latest"
+  pullPolicy: Always
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: LoadBalancer
+  port: 80
+  targetPort: 8000
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 80
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# ConfigMap for environment variables
+config:
+  DEBUG: "False"
+  ALLOWED_HOSTS: "*"
+  SECRET_KEY: "your-secret-key-here"
+  DATABASE_URL: "sqlite:///db.sqlite3"
+  # Add other environment variables from your Django app
+  DJANGO_SETTINGS_MODULE: "myproject.settings"
+  PYTHONPATH: "/app"
+
+# Probes configuration
+livenessProbe:
+  httpGet:
+    path: /health/
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health/
+    port: 8000
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3

@@ -1,0 +1,14 @@
+{{- range .Values.repositories }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .name }}-repo
+  namespace: argo-cd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  url: {{ .url }}
+  # If you need to add credentials for a private repository, uncomment these lines.
+  # username: {{ .username | default "" }}
+  # password: {{ .password | default "" }}
+{{- end }}

@@ -1,0 +1,21 @@
+repositories:
+  - name: django-app-repo
+    url: https://github.com/YevhenNesvit/DevOps-CI-CD.git
+
+applications:
+  - name: my-django-app
+    namespace: default # Or the namespace where the app should be deployed
+    project: default # A project in Argo CD
+    source:
+      repoURL: "https://github.com/YevhenNesvit/DevOps-CI-CD.git"
+      targetRevision: lesson-7 # The branch to track
+      path: charts/django-app # The path to the Helm chart
+    destination:
+      server: https://kubernetes.default.svc
+      namespace: default
+    syncPolicy:
+      automated:
+        prune: true
+        selfHeal: true
+      syncOptions:
+        - CreateNamespace=true

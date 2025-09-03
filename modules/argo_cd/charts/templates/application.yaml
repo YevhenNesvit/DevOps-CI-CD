@@ -1,0 +1,30 @@
+{{- range .Values.applications }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ .name }}
+  namespace: argo-cd
+  # Add finalizers to ensure the application is deleted correctly
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ .project }}
+  source:
+    repoURL: {{ .source.repoURL }}
+    targetRevision: {{ .source.targetRevision }}
+    path: {{ .source.path }}
+    # Specify Helm as the source type and its values for the Django app.
+    # The `valueFile` can be used to set the image tag dynamically.
+    helm:
+      valueFiles:
+      - values.yaml
+  destination:
+    server: {{ .destination.server }}
+    namespace: {{ .destination.namespace }}
+  syncPolicy:
+    automated:
+      prune: {{ .syncPolicy.automated.prune }}
+      selfHeal: {{ .syncPolicy.automated.selfHeal }}
+    syncOptions:
+      - CreateNamespace={{ index .syncPolicy.syncOptions 0 | trimPrefix "CreateNamespace=" }}
+{{- end }}

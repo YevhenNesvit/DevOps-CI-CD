@@ -49,3 +49,54 @@ module "eks" {
   node_max_size        = 4
   node_min_size        = 1
 }
+
+module "jenkins" {
+  source = "./modules/jenkins"
+  
+  cluster_name           = module.eks.cluster_name
+  cluster_endpoint       = module.eks.cluster_endpoint
+  cluster_ca_certificate = module.eks.cluster_ca_certificate
+  
+  jenkins_namespace     = var.jenkins_namespace
+  jenkins_chart_version = var.jenkins_chart_version
+  jenkins_admin_password = var.jenkins_admin_password
+  
+  ecr_registry = module.ecr.repository_url
+  aws_region   = var.aws_region
+  
+  github_username = var.github_username
+  github_token    = var.github_token
+  aws_access_key  = var.aws_access_key
+  aws_secret_key  = var.aws_secret_key
+  
+  storage_class = "gp2"
+  
+  depends_on = [module.eks]
+}
+
+# Підключення модуля Argo CD
+module "argocd" {
+  source = "./modules/argo_cd"
+  
+  cluster_name           = module.eks.cluster_name
+  cluster_endpoint       = module.eks.cluster_endpoint
+  cluster_ca_certificate = module.eks.cluster_ca_certificate
+  
+  argocd_namespace    = var.argocd_namespace
+  argocd_chart_version = var.argocd_chart_version
+  
+  github_repo_url     = var.github_charts_repo_url
+  github_username     = var.github_username
+  github_token        = var.github_token
+  
+  app_name         = var.django_app_name
+  app_namespace    = var.django_app_namespace
+  chart_path       = var.helm_chart_path
+  target_revision  = var.target_revision
+  
+  sync_policy_automated = var.sync_policy_automated
+  auto_prune           = var.auto_prune
+  self_heal           = var.self_heal
+  
+  depends_on = [module.eks]
+}

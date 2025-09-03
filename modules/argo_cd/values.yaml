@@ -1,0 +1,89 @@
+server:
+  service:
+    type: LoadBalancer
+  
+  # Налаштування входу без TLS для спрощення (в продакшені використовуйте TLS)
+  extraArgs:
+    - --insecure
+  
+  config:
+    # Відключаємо dex для спрощення автентифікації
+    url: https://argocd.local
+    application.instanceLabelKey: argocd.argoproj.io/instance
+    
+  # Адміністратор може керувати всіма додатками
+  rbacConfig:
+    policy.default: role:readonly
+    policy.csv: |
+      p, role:admin, applications, *, */*, allow
+      p, role:admin, certificates, *, *, allow
+      p, role:admin, clusters, *, *, allow
+      p, role:admin, repositories, *, *, allow
+      p, role:admin, accounts, *, *, allow
+      p, role:admin, gpgkeys, *, *, allow
+      g, argocd-admins, role:admin
+
+# Налаштування контролера
+controller:
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+
+# Redis налаштування
+redis:
+  resources:
+    limits:
+      cpu: 200m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Repo server налаштування
+repoServer:
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+# ApplicationSet контролер
+applicationSet:
+  enabled: true
+
+# Notifications контролер
+notifications:
+  enabled: false
+
+# Dex (відключено для спрощення)
+dex:
+  enabled: false
+
+# Глобальні налаштування
+global:
+  # Зображення
+  image:
+    repository: quay.io/argoproj/argocd
+    tag: v2.9.3
+  
+  # Домен
+  domain: argocd.local
+
+# Конфігурація для створення початкових репозиторіїв та додатків
+configs:
+  repositories:
+    helm-charts-repo:
+      url: ${github_repo_url}
+      type: git
+      name: helm-charts
+      username: ${github_username}
+      password: ${github_token}
+
+# Налаштування ініціалізації
+createAggregateRoles: true

@@ -1,0 +1,131 @@
+controller:
+  adminPassword: "${admin_password}"
+  
+  resources:
+    requests:
+      cpu: "${cpu_request}"
+      memory: "${memory_request}"
+    limits:
+      cpu: "${cpu_limit}"
+      memory: "${memory_limit}"
+
+  serviceType: LoadBalancer
+  
+  # Налаштування Jenkins Configuration as Code
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      welcome-message: |
+        jenkins:
+          systemMessage: "Jenkins configured automatically by Jenkins Configuration as Code plugin\n\n"
+          
+      credentials: |
+        credentials:
+          system:
+            domainCredentials:
+              - credentials:
+                  - aws:
+                      accessKey: "${aws_access_key}"
+                      secretKey: "${aws_secret_key}"
+                      description: "AWS ECR credentials"
+                      id: "aws-ecr-credentials"
+                      scope: GLOBAL
+                  - usernamePassword:
+                      description: "GitHub credentials for app repository"
+                      id: "github-app-credentials"
+                      password: "${github_token}"
+                      scope: GLOBAL
+                      username: "${github_username}"
+                  - usernamePassword:
+                      description: "GitHub credentials for helm charts repository"
+                      id: "github-charts-credentials"
+                      password: "${github_token}"
+                      scope: GLOBAL
+                      username: "${github_username}"
+
+      tools: |
+        tool:
+          git:
+            installations:
+              - name: "Default"
+                home: "git"
+
+  # Додаткові плагіни
+  additionalPlugins:
+    - kubernetes:4064.v2a_dcc74f0e69
+    - workflow-aggregator:596.v8c21c963d92d
+    - git:5.0.0
+    - configuration-as-code:1670.v564dc8b_982d0
+    - blueocean:1.27.0
+    - pipeline-stage-view:2.33
+    - amazon-ecr:1.7
+    - docker-workflow:563.vd5d2e5c4007f
+    - github:1.37.3.1
+    - pipeline-utility-steps:2.16.0
+
+  # Налаштування для Kubernetes агентів
+  containerEnvVars:
+    - name: AWS_DEFAULT_REGION
+      value: "${aws_region}"
+    - name: ECR_REGISTRY
+      value: "${ecr_registry}"
+
+# Налаштування Kubernetes агентів
+agent:
+  enabled: true
+  defaultsProviderTemplate: ""
+  
+  # Налаштування для Kaniko
+  podTemplates:
+    kaniko: |
+      - name: kaniko
+        label: kaniko
+        serviceAccount: jenkins
+        containers:
+        - name: kaniko
+          image: gcr.io/kaniko-project/executor:debug
+          imagePullPolicy: Always
+          command:
+          - sleep
+          args:
+          - 99d
+          volumeMounts:
+          - name: jenkins-docker-cfg
+            mountPath: /kaniko/.docker
+        - name: git
+          image: alpine/git:latest
+          command:
+          - sleep
+          args:
+          - 99d
+        volumes:
+        - name: jenkins-docker-cfg
+          projected:
+            sources:
+            - secret:
+                name: regcred
+                items:
+                - key: .dockerconfigjson
+                  path: config.json
+
+# Налаштування персистентності
+persistence:
+  enabled: true
+  storageClass: "${storage_class}"
+  accessMode: "ReadWriteOnce"
+  size: "20Gi"
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::${aws_account_id}:role/jenkins-service-account-role"
+
+# RBAC
+rbac:
+  create: true
+  readSecrets: true
+
+# Network Policy
+networkPolicy:
+  enabled: false

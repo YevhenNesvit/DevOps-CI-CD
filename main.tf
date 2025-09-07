@@ -100,3 +100,66 @@ module "argocd" {
   
   depends_on = [module.eks]
 }
+
+module "rds" {
+  source = "./modules/rds"
+
+  # Database type selection
+  use_aurora = var.use_aurora
+
+  # Engine configuration
+  engine         = var.use_aurora ? "aurora-postgresql" : "postgres"
+  engine_version = var.db_engine_version
+  instance_class = var.db_instance_class
+
+  # Aurora specific
+  aurora_instances_count = var.use_aurora ? var.aurora_instances_count : null
+  aurora_serverless_v2_scaling = var.aurora_serverless_v2_scaling
+
+  # Database configuration
+  db_name  = var.db_name
+  username = var.db_username
+  password = var.db_password
+  manage_master_user_password = var.manage_master_user_password
+
+  # Network configuration
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.private_subnet_ids
+
+  # Security
+  allowed_security_groups = [module.eks.cluster_security_group_id]
+  allowed_cidr_blocks     = var.db_allowed_cidr_blocks
+
+  # Storage (RDS only)
+  allocated_storage     = var.use_aurora ? null : var.db_allocated_storage
+  max_allocated_storage = var.use_aurora ? null : var.db_max_allocated_storage
+  storage_type         = var.use_aurora ? null : var.db_storage_type
+  storage_encrypted    = var.db_storage_encrypted
+
+  # High availability
+  multi_az = var.use_aurora ? null : var.db_multi_az
+
+  # Backup and maintenance
+  backup_retention_period = var.db_backup_retention_period
+  backup_window          = var.db_backup_window
+  maintenance_window     = var.db_maintenance_window
+  deletion_protection    = var.db_deletion_protection
+  skip_final_snapshot    = var.db_skip_final_snapshot
+
+  # Monitoring
+  monitoring_interval                   = var.db_monitoring_interval
+  performance_insights_enabled         = var.db_performance_insights_enabled
+  performance_insights_retention_period = var.db_performance_insights_retention_period
+
+  # Custom parameters
+  custom_db_parameters = var.custom_db_parameters
+
+  # Tagging
+  identifier_prefix = var.project_name
+  environment      = var.environment
+  project         = var.project_name
+
+  tags = local.common_tags
+
+  depends_on = [module.vpc, module.eks]
+}

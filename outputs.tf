@@ -130,3 +130,92 @@ output "deployment_summary" {
     app_namespace   = var.django_app_namespace
   }
 }
+
+output "database_endpoint" {
+  description = "Database endpoint"
+  value       = module.rds.endpoint
+}
+
+output "database_reader_endpoint" {
+  description = "Database reader endpoint (Aurora only)"
+  value       = module.rds.reader_endpoint
+}
+
+output "database_port" {
+  description = "Database port"
+  value       = module.rds.port
+}
+
+output "database_name" {
+  description = "Database name"
+  value       = module.rds.database_name
+}
+
+output "database_username" {
+  description = "Database username"
+  value       = module.rds.username
+  sensitive   = true
+}
+
+output "database_identifier" {
+  description = "Database identifier"
+  value       = module.rds.identifier
+}
+
+output "database_arn" {
+  description = "Database ARN"
+  value       = module.rds.arn
+}
+
+output "database_engine" {
+  description = "Database engine"
+  value       = module.rds.engine
+}
+
+output "database_engine_version" {
+  description = "Database engine version"
+  value       = module.rds.engine_version
+}
+
+output "database_security_group_id" {
+  description = "Database security group ID"
+  value       = module.rds.security_group_id
+}
+
+output "database_subnet_group_name" {
+  description = "Database subnet group name"
+  value       = module.rds.subnet_group_name
+}
+
+output "database_parameter_group_name" {
+  description = "Database parameter group name"
+  value       = module.rds.parameter_group_name
+}
+
+output "database_connection_string" {
+  description = "Database connection string (without password)"
+  value       = module.rds.connection_string
+  sensitive   = true
+}
+
+output "database_secrets_manager_arn" {
+  description = "Database master user secret ARN in Secrets Manager (if managed by AWS)"
+  value       = module.rds.master_user_secret_arn
+  sensitive   = true
+}
+
+output "database_type" {
+  description = "Database type (Aurora or RDS)"
+  value       = var.use_aurora ? "Aurora PostgreSQL" : "RDS PostgreSQL"
+}
+
+# Aurora specific outputs
+output "aurora_cluster_identifier" {
+  description = "Aurora cluster identifier (if Aurora is used)"
+  value       = var.use_aurora ? module.rds.identifier : null
+}
+
+output "aurora_instance_identifiers" {
+  description = "Aurora instance identifiers (if Aurora is used)"
+  value       = var.use_aurora ? module.rds.instance_identifiers : null
+}

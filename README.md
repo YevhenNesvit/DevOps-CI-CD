@@ -583,11 +583,3 @@ terraform output connection_string
 # Перевірити секрет в Secrets Manager
 aws secretsmanager get-secret-value --secret-id $(terraform output -raw master_user_secret_arn)
 ```
-
-## Підтримка
-
-Для питань та проблем створіть issue в репозиторії проекту.
-
-## Ліцензія
-
-MIT License

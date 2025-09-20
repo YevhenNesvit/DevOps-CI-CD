@@ -1,0 +1,124 @@
+pipeline {
+    agent any
+    
+    environment {
+        ECR_REGISTRY = "${ECR_REPOSITORY_URL}"
+        IMAGE_NAME = "django-app"
+        AWS_REGION = "us-west-2"
+        EKS_CLUSTER_NAME = "my-eks-cluster"
+        NAMESPACE = "default"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def imageTag = "${BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
+                    env.IMAGE_TAG = imageTag
+                    
+                    dir('Django') {
+                        sh """
+                            docker build -t ${IMAGE_NAME}:${imageTag} .
+                            docker tag ${IMAGE_NAME}:${imageTag} ${ECR_REGISTRY}:${imageTag}
+                            docker tag ${IMAGE_NAME}:${imageTag} ${ECR_REGISTRY}:latest
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                dir('Django') {
+                    sh """
+                        docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} python manage.py test
+                    """
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            steps {
+                script {
+                    // Trivy security scan
+                    sh """
+                        trivy image --exit-code 0 --severity HIGH,CRITICAL ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+        
+        stage('Push to ECR') {
+            steps {
+                withCredentials([aws(credentialsId: 'aws-credentials', region: AWS_REGION)]) {
+                    sh """
+                        # Login to ECR
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                        
+                        # Push images
+                        docker push ${ECR_REGISTRY}:${IMAGE_TAG}
+                        docker push ${ECR_REGISTRY}:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy to EKS') {
+            steps {
+                withCredentials([aws(credentialsId: 'aws-credentials', region: AWS_REGION)]) {
+                    sh """
+                        # Update kubeconfig
+                        aws eks update-kubeconfig --region ${AWS_REGION} --name ${EKS_CLUSTER_NAME}
+                        
+                        # Deploy using Helm
+                        helm upgrade --install django-app ./charts/django-app \
+                            --set image.repository=${ECR_REGISTRY} \
+                            --set image.tag=${IMAGE_TAG} \
+                            --namespace ${NAMESPACE} \
+                            --create-namespace \
+                            --wait
+                    """
+                }
+            }
+        }
+        
+        stage('Smoke Tests') {
+            steps {
+                sh """
+                    # Wait for deployment to be ready
+                    kubectl wait --for=condition=available --timeout=300s deployment/django-app -n ${NAMESPACE}
+                    
+                    # Run smoke tests
+                    kubectl exec -n ${NAMESPACE} deployment/django-app -- python manage.py check
+                """
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean up local images
+            sh """
+                docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
+                docker rmi ${ECR_REGISTRY}:${IMAGE_TAG} || true
+                docker rmi ${ECR_REGISTRY}:latest || true
+            """
+        }
+        
+        success {
+            echo 'Pipeline completed successfully!'
+            // Notification logic can be added here
+        }
+        
+        failure {
+            echo 'Pipeline failed!'
+            // Notification logic can be added here
+        }
+    }
+}
